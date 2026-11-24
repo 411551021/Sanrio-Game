@@ -1,0 +1,1040 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>三麗鷗角色名字配對遊戲 🎀 Sanrio Match</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            sanrioPink: '#ffb3c6',
+            sanrioSoftPink: '#ffe5ec',
+            sanrioPurple: '#cdb4db',
+            sanrioBlue: '#bde0fe',
+            sanrioYellow: '#fde2e4',
+            sanrioGreen: '#c1fba4'
+          },
+          fontFamily: {
+            rounded: ['ui-rounded', 'Hiragino Maru Gothic ProN', 'Quicksand', 'Comfortaa', 'sans-serif']
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    /* 遊戲自訂可愛動畫與樣式 */
+    body {
+      font-family: 'ui-rounded', 'Hiragino Maru Gothic ProN', 'Comfortaa', sans-serif;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    /* 飄浮背景動態 */
+    .floating-bg {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      top: 0;
+      left: 0;
+      overflow: hidden;
+      z-index: 0;
+      pointer-events: none;
+    }
+    .bubble {
+      position: absolute;
+      bottom: -50px;
+      background: rgba(255, 255, 255, 0.4);
+      border-radius: 50%;
+      animation: floatUp 12s infinite linear;
+    }
+    @keyframes floatUp {
+      0% { transform: translateY(0) rotate(0deg); opacity: 0.8; }
+      100% { transform: translateY(-110vh) rotate(360deg); opacity: 0; }
+    }
+
+    /* 翻牌卡片 3D 效果 */
+    .card-scene {
+      perspective: 1000px;
+    }
+    .card-inner {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      transition: transform 0.6s cubic-bezier(0.4, 0.2, 0.2, 1);
+      transform-style: preserve-3d;
+      cursor: pointer;
+    }
+    .card-inner.is-flipped {
+      transform: rotateY(180deg);
+    }
+    .card-face {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      backface-visibility: hidden;
+      border-radius: 1.25rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.03);
+    }
+    .card-front {
+      background: linear-gradient(135deg, #ffc8dd 0%, #ffafcc 100%);
+      border: 3px solid #ffffff;
+    }
+    .card-back {
+      background: #ffffff;
+      transform: rotateY(180deg);
+      border: 3px solid #ffb3c6;
+    }
+
+    /* 答錯晃動動畫 */
+    .shake {
+      animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
+    }
+    @keyframes shake {
+      10%, 90% { transform: translate3d(-2px, 0, 0); }
+      20%, 80% { transform: translate3d(4px, 0, 0); }
+      30%, 50%, 70% { transform: translate3d(-6px, 0, 0); }
+      40%, 60% { transform: translate3d(6px, 0, 0); }
+    }
+
+    /* 答對彈跳動畫 */
+    .bounce-celebrate {
+      animation: bounce 0.6s ease infinite alternate;
+    }
+    @keyframes bounce {
+      from { transform: translateY(0); }
+      to { transform: translateY(-12px); }
+    }
+
+    /* 愛心特效 Canvas */
+    #particle-canvas {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      pointer-events: none;
+      z-index: 50;
+    }
+  </style>
+</head>
+<body class="bg-gradient-to-br from-pink-100 via-purple-100 to-blue-100 min-h-screen text-gray-700 relative overflow-x-hidden flex flex-col justify-between">
+
+  <!-- 飄浮背景裝飾元素 -->
+  <div class="floating-bg" id="bubble-bg"></div>
+
+  <!-- 粒子特效 Canvas -->
+  <canvas id="particle-canvas"></canvas>
+
+  <!-- 頂部導覽與狀態列 -->
+  <header class="relative z-10 w-full max-w-4xl mx-auto px-4 pt-4 pb-2">
+    <div class="bg-white/80 backdrop-blur-md rounded-3xl p-4 shadow-lg border border-white/60 flex flex-wrap items-center justify-between gap-3">
+      <!-- 標題與標誌 -->
+      <div class="flex items-center space-x-3">
+        <div class="w-12 h-12 bg-pink-400 rounded-2xl flex items-center justify-center text-white text-2xl shadow-md">
+          🎀
+        </div>
+        <div>
+          <h1 class="text-xl md:text-2xl font-black bg-gradient-to-r from-pink-500 to-purple-500 bg-clip-text text-transparent">
+            三麗鷗角色對對碰
+          </h1>
+          <p class="text-xs text-pink-400 font-medium">Sanrio Friends Matching Game</p>
+        </div>
+      </div>
+
+      <!-- 控制按鈕與音效 -->
+      <div class="flex items-center space-x-2">
+        <button id="sound-btn" onclick="toggleSound()" class="w-10 h-10 rounded-2xl bg-pink-100 hover:bg-pink-200 text-pink-500 flex items-center justify-center transition shadow-sm">
+          <i class="fa-solid fa-volume-high text-lg" id="sound-icon"></i>
+        </button>
+        <button onclick="resetGame()" class="px-4 py-2 rounded-2xl bg-purple-400 hover:bg-purple-500 text-white font-bold text-sm shadow-md transition flex items-center space-x-1">
+          <i class="fa-solid fa-rotate-right"></i>
+          <span>重新開始</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- 模式選擇 Tab -->
+    <div class="flex justify-center mt-4">
+      <div class="bg-white/70 p-1.5 rounded-full shadow-inner flex space-x-2 border border-pink-200">
+        <button id="tab-quiz" onclick="switchMode('quiz')" class="px-6 py-2 rounded-full text-sm font-bold transition shadow-sm bg-pink-400 text-white">
+          <i class="fa-solid fa-eye mr-1"></i> 看圖猜名字
+        </button>
+        <button id="tab-memory" onclick="switchMode('memory')" class="px-6 py-2 rounded-full text-sm font-bold transition text-gray-600 hover:bg-white/50">
+          <i class="fa-solid fa-clone mr-1"></i> 記憶翻牌配對
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- 主要遊戲區域 -->
+  <main class="relative z-10 w-full max-w-4xl mx-auto px-4 my-4 flex-grow flex flex-col justify-center">
+
+    <!-- ================= 模式一：看圖猜名字 ================= -->
+    <section id="mode-quiz" class="block">
+      <div class="bg-white/80 backdrop-blur-md rounded-3xl p-6 shadow-xl border border-white/80 max-w-lg mx-auto">
+        <!-- 分數與進度資訊 -->
+        <div class="flex justify-between items-center mb-4 text-sm font-bold">
+          <div class="bg-pink-100 text-pink-600 px-4 py-1.5 rounded-full flex items-center">
+            <span class="mr-1">進度:</span>
+            <span id="quiz-progress" class="text-base text-pink-700">1/10</span>
+          </div>
+          <div class="flex space-x-2">
+            <div class="bg-amber-100 text-amber-700 px-3 py-1.5 rounded-full flex items-center">
+              <i class="fa-solid fa-fire text-amber-500 mr-1"></i>
+              <span>連勝: <span id="quiz-combo">0</span></span>
+            </div>
+            <div class="bg-purple-100 text-purple-700 px-4 py-1.5 rounded-full flex items-center">
+              <span>得分: <span id="quiz-score" class="text-base text-purple-800">0</span></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 角色 SVG 插畫展示框 -->
+        <div class="relative bg-gradient-to-b from-pink-50 to-purple-50 rounded-2xl p-6 mb-6 flex flex-col items-center justify-center border-2 border-pink-200 shadow-inner group">
+          <div id="character-svg-container" class="w-44 h-44 md:w-52 md:h-52 flex items-center justify-center filter drop-shadow-md transition transform group-hover:scale-105">
+            <!-- SVG 會透過 JS 動態注入 -->
+          </div>
+          <p class="text-xs text-purple-400 mt-2 font-medium">請問這一位三麗鷗好朋友是誰呢？</p>
+        </div>
+
+        <!-- 選項按鈕區（四選一） -->
+        <div id="quiz-options" class="grid grid-cols-2 gap-3">
+          <!-- 4 個選項按鈕將由 JS 動態生成 -->
+        </div>
+      </div>
+    </section>
+
+
+    <!-- ================= 模式二：記憶翻牌配對 ================= -->
+    <section id="mode-memory" class="hidden">
+      <div class="bg-white/80 backdrop-blur-md rounded-3xl p-4 md:p-6 shadow-xl border border-white/80 max-w-2xl mx-auto">
+        <!-- 翻牌狀態欄 -->
+        <div class="flex justify-between items-center mb-4 text-sm font-bold">
+          <div class="bg-blue-100 text-blue-700 px-4 py-1.5 rounded-full">
+            <span>翻牌步數: <span id="memory-moves" class="text-base text-blue-800">0</span></span>
+          </div>
+          <div class="bg-pink-100 text-pink-700 px-4 py-1.5 rounded-full">
+            <span>已配對: <span id="memory-matches" class="text-base text-pink-800">0 / 6</span></span>
+          </div>
+        </div>
+
+        <!-- 卡片網格 -->
+        <div id="memory-grid" class="grid grid-cols-3 md:grid-cols-4 gap-3">
+          <!-- 翻牌卡片動態生成 -->
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- 底部版權宣告 -->
+  <footer class="relative z-10 text-center py-4 text-xs text-pink-400 font-medium">
+    <p>Sanrio Character Fan Match Game 💖 祝你有愉快的一天！</p>
+  </footer>
+
+  <!-- ================= 角色小知識 / 答對彈窗 Modal ================= -->
+  <div id="trivia-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm hidden px-4">
+    <div class="bg-white rounded-3xl max-w-sm w-full p-6 text-center shadow-2xl border-4 border-pink-300 transform transition-all scale-95 opacity-0" id="trivia-modal-card">
+      <div class="w-16 h-16 bg-pink-100 text-pink-500 rounded-full flex items-center justify-center text-3xl mx-auto mb-3 bounce-celebrate">
+        ✨
+      </div>
+      <h3 class="text-2xl font-black text-pink-500 mb-1" id="trivia-name-zh">角色中文名</h3>
+      <p class="text-xs font-semibold text-purple-400 mb-3" id="trivia-name-en">Character Name</p>
+      
+      <div class="bg-pink-50 rounded-2xl p-4 text-left text-xs space-y-2 mb-5 border border-pink-100 text-gray-600">
+        <p>🎂 <strong>生日：</strong><span id="trivia-birthday">--</span></p>
+        <p>💖 <strong>特色與個性：</strong><span id="trivia-bio">--</span></p>
+      </div>
+
+      <button onclick="closeTriviaModal()" class="w-full py-3 bg-gradient-to-r from-pink-400 to-purple-400 hover:from-pink-500 hover:to-purple-500 text-white font-bold rounded-2xl shadow-md transition transform active:scale-95">
+        下一題 ➔
+      </button>
+    </div>
+  </div>
+
+  <!-- ================= 結算視窗 Modal ================= -->
+  <div id="result-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm hidden px-4">
+    <div class="bg-white rounded-3xl max-w-md w-full p-6 text-center shadow-2xl border-4 border-purple-300 transform transition-all">
+      <div class="text-5xl mb-2">🏆</div>
+      <h2 class="text-2xl font-black text-purple-600 mb-1">遊戲完成！</h2>
+      <p class="text-xs text-gray-400 mb-4">Sanrio Friends Matching Challenge</p>
+
+      <div class="bg-purple-50 rounded-2xl p-4 mb-4 space-y-2">
+        <div class="text-3xl font-black text-pink-500" id="result-score">100 分</div>
+        <div class="text-sm font-bold text-purple-700" id="result-title">「三麗鷗超級鐵粉 💖」</div>
+        <p class="text-xs text-gray-500" id="result-detail">你對三麗鷗家族的角色瞭如指掌！太厲害了！</p>
+      </div>
+
+      <button onclick="closeResultModal(); resetGame();" class="w-full py-3 bg-gradient-to-r from-purple-400 to-pink-400 hover:from-purple-500 hover:to-pink-500 text-white font-bold rounded-2xl shadow-lg transition transform active:scale-95">
+        再玩一次 🔄
+      </button>
+    </div>
+  </div>
+
+  <!-- ================= JavaScript 邏輯與 SVG 角色庫 ================= -->
+  <script>
+    /* -------------------------------------------------------------
+       1. 三麗鷗角色資料庫 (包含 10 位角色繁中名、英文名、檔案與向量 SVG)
+       ------------------------------------------------------------- */
+    const SANRIO_CHARACTERS = [
+      {
+        id: 'kitty',
+        nameZh: '凱蒂貓',
+        nameEn: 'Hello Kitty',
+        birthday: '11月1日',
+        bio: '右耳戴著標誌性的紅色蝴蝶結，最喜歡媽媽做的香噴噴蘋果派！',
+        svg: `<svg viewBox="0 0 200 200" class="w-full h-full">
+          <!-- Ears -->
+          <path d="M 50 70 L 35 25 C 60 25 75 40 85 50 Z" fill="#ffffff" stroke="#4a4a4a" stroke-width="4" stroke-linejoin="round"/>
+          <path d="M 150 70 L 165 25 C 140 25 125 40 115 50 Z" fill="#ffffff" stroke="#4a4a4a" stroke-width="4" stroke-linejoin="round"/>
+          <!-- Head -->
+          <ellipse cx="100" cy="110" rx="75" ry="55" fill="#ffffff" stroke="#4a4a4a" stroke-width="4"/>
+          <!-- Eyes -->
+          <ellipse cx="65" cy="110" rx="6" ry="9" fill="#2d2d2d"/>
+          <ellipse cx="135" cy="110" rx="6" ry="9" fill="#2d2d2d"/>
+          <!-- Nose -->
+          <ellipse cx="100" cy="122" rx="7" ry="5" fill="#ffcd38" stroke="#4a4a4a" stroke-width="2"/>
+          <!-- Whiskers -->
+          <line x1="30" y1="102" x2="50" y2="105" stroke="#4a4a4a" stroke-width="3.5" stroke-linecap="round"/>
+          <line x1="25" y1="115" x2="48" y2="115" stroke="#4a4a4a" stroke-width="3.5" stroke-linecap="round"/>
+          <line x1="30" y1="128" x2="50" y2="125" stroke="#4a4a4a" stroke-width="3.5" stroke-linecap="round"/>
+          <line x1="170" y1="102" x2="150" y2="105" stroke="#4a4a4a" stroke-width="3.5" stroke-linecap="round"/>
+          <line x1="175" y1="115" x2="152" y2="115" stroke="#4a4a4a" stroke-width="3.5" stroke-linecap="round"/>
+          <line x1="170" y1="128" x2="150" y2="125" stroke="#4a4a4a" stroke-width="3.5" stroke-linecap="round"/>
+          <!-- Red Bow on left ear -->
+          <g transform="translate(50, 42)">
+            <circle cx="0" cy="0" r="10" fill="#ff4d6d" stroke="#4a4a4a" stroke-width="3"/>
+            <path d="M -8 -3 C -25 -20 -30 10 -8 5 Z" fill="#ff4d6d" stroke="#4a4a4a" stroke-width="3"/>
+            <path d="M 8 -3 C 25 -20 30 10 8 5 Z" fill="#ff4d6d" stroke="#4a4a4a" stroke-width="3"/>
+            <circle cx="-14" cy="-3" r="3" fill="#ff758f"/>
+          </g>
+        </svg>`
+      },
+      {
+        id: 'cinnamoroll',
+        nameZh: '大耳狗喜拿',
+        nameEn: 'Cinnamoroll',
+        birthday: '3月6日',
+        bio: '在遙遠雲朵上誕生的白色小狗，擁有像肉桂捲一樣捲捲的尾巴，會用大耳朵飛翔！',
+        svg: `<svg viewBox="0 0 200 200" class="w-full h-full">
+          <!-- Floppy Ears -->
+          <path d="M 50 105 C 10 105 5 155 45 150 C 70 145 68 120 60 110 Z" fill="#ffffff" stroke="#4a4a4a" stroke-width="4"/>
+          <path d="M 150 105 C 190 105 195 155 155 150 C 130 145 132 120 140 110 Z" fill="#ffffff" stroke="#4a4a4a" stroke-width="4"/>
+          <!-- Head -->
+          <ellipse cx="100" cy="115" rx="55" ry="38" fill="#ffffff" stroke="#4a4a4a" stroke-width="4"/>
+          <!-- Eyes (Blue) -->
+          <ellipse cx="75" cy="115" rx="5" ry="8" fill="#3a86ff"/>
+          <ellipse cx="125" cy="115" rx="5" ry="8" fill="#3a86ff"/>
+          <!-- Pink Cheeks -->
+          <ellipse cx="62" cy="124" rx="9" ry="5" fill="#ffb3c6" opacity="0.8"/>
+          <ellipse cx="138" cy="124" rx="9" ry="5" fill="#ffb3c6" opacity="0.8"/>
+          <!-- Cute Smile Mouth -->
+          <path d="M 94 122 Q 100 128 106 122" fill="none" stroke="#4a4a4a" stroke-width="3" stroke-linecap="round"/>
+        </svg>`
+      },
+      {
+        id: 'melody',
+        nameZh: '美樂蒂',
+        nameEn: 'My Melody',
+        birthday: '1月18日',
+        bio: '戴著祖母縫製的粉紅色頭套，個性天真無邪又親切，最喜歡吃奶油蛋糕！',
+        svg: `<svg viewBox="0 0 200 200" class="w-full h-full">
+          <!-- Hood Ears -->
+          <path d="M 60 90 L 45 20 C 75 15 85 50 80 85 Z" fill="#ff85a1" stroke="#4a4a4a" stroke-width="4" stroke-linejoin="round"/>
+          <path d="M 140 90 L 155 20 C 125 15 115 50 120 85 Z" fill="#ff85a1" stroke="#4a4a4a" stroke-width="4" stroke-linejoin="round"/>
+          <!-- Hood Head -->
+          <circle cx="100" cy="115" r="55" fill="#ff85a1" stroke="#4a4a4a" stroke-width="4"/>
+          <!-- Face Opening -->
+          <ellipse cx="100" cy="122" rx="38" ry="30" fill="#ffffff" stroke="#4a4a4a" stroke-width="3.5"/>
+          <!-- Eyes -->
+          <ellipse cx="80" cy="120" rx="4.5" ry="7" fill="#2d2d2d"/>
+          <ellipse cx="120" cy="120" rx="4.5" ry="7" fill="#2d2d2d"/>
+          <!-- Yellow Nose -->
+          <ellipse cx="100" cy="125" rx="5" ry="4" fill="#ffcd38" stroke="#4a4a4a" stroke-width="1.5"/>
+          <!-- Mouth -->
+          <path d="M 96 132 Q 100 135 104 132" fill="none" stroke="#4a4a4a" stroke-width="2.5" stroke-linecap="round"/>
+          <!-- Flower Decoration -->
+          <g transform="translate(68, 85)">
+            <circle cx="0" cy="0" r="10" fill="#ffffff" stroke="#4a4a4a" stroke-width="2.5"/>
+            <circle cx="0" cy="0" r="4" fill="#ffcd38"/>
+          </g>
+        </svg>`
+      },
+      {
+        id: 'kuromi',
+        nameZh: '酷洛米',
+        nameEn: 'Kuromi',
+        birthday: '10月31日',
+        bio: '戴著黑色小惡魔頭套與粉紅骷髏圖案，看似淘氣叛逆，其實非常有少女心！',
+        svg: `<svg viewBox="0 0 200 200" class="w-full h-full">
+          <!-- Jester Ear Points -->
+          <path d="M 65 85 L 25 35 C 45 40 70 65 75 80 Z" fill="#3d3a45" stroke="#2b2930" stroke-width="4" stroke-linejoin="round"/>
+          <path d="M 135 85 L 175 35 C 155 40 130 65 125 80 Z" fill="#3d3a45" stroke="#2b2930" stroke-width="4" stroke-linejoin="round"/>
+          <!-- Ear Balls -->
+          <circle cx="23" cy="33" r="7" fill="#ff758f" stroke="#2b2930" stroke-width="2.5"/>
+          <circle cx="177" cy="33" r="7" fill="#ff758f" stroke="#2b2930" stroke-width="2.5"/>
+          <!-- Hood Head -->
+          <circle cx="100" cy="115" r="55" fill="#3d3a45" stroke="#2b2930" stroke-width="4"/>
+          <!-- Face Opening -->
+          <ellipse cx="100" cy="122" rx="38" ry="30" fill="#ffffff" stroke="#2b2930" stroke-width="3.5"/>
+          <!-- Pink Skull Icon -->
+          <g transform="translate(100, 78)">
+            <ellipse cx="0" cy="0" rx="9" ry="7" fill="#ff758f"/>
+            <circle cx="-3" cy="-1" r="2" fill="#3d3a45"/>
+            <circle cx="3" cy="-1" r="2" fill="#3d3a45"/>
+          </g>
+          <!-- Devilish Eyes -->
+          <path d="M 72 114 Q 80 118 84 123" fill="none" stroke="#2b2930" stroke-width="3.5" stroke-linecap="round"/>
+          <path d="M 128 114 Q 120 118 116 123" fill="none" stroke="#2b2930" stroke-width="3.5" stroke-linecap="round"/>
+          <!-- Nose & Smile -->
+          <ellipse cx="100" cy="126" rx="3" ry="2.5" fill="#ff758f"/>
+          <path d="M 94 130 Q 100 137 106 130" fill="none" stroke="#2b2930" stroke-width="2.5" stroke-linecap="round"/>
+        </svg>`
+      },
+      {
+        id: 'purin',
+        nameZh: '布丁狗',
+        nameEn: 'Pompompurin',
+        birthday: '4月16日',
+        bio: '戴著棕色貝雷帽的圓滾滾黃金獵犬，最喜歡吃媽媽做的鮮奶布丁！',
+        svg: `<svg viewBox="0 0 200 200" class="w-full h-full">
+          <!-- Floppy Ears -->
+          <path d="M 45 105 C 25 105 25 145 45 140 C 58 135 55 115 52 108 Z" fill="#8d5b4c" stroke="#4a4a4a" stroke-width="4"/>
+          <path d="M 155 105 C 175 105 175 145 155 140 C 142 135 145 115 148 108 Z" fill="#8d5b4c" stroke="#4a4a4a" stroke-width="4"/>
+          <!-- Head Body -->
+          <ellipse cx="100" cy="120" rx="60" ry="48" fill="#ffea9f" stroke="#4a4a4a" stroke-width="4"/>
+          <!-- Brown Beret Hat -->
+          <path d="M 75 76 C 75 62 125 62 125 76 Z" fill="#653e32" stroke="#4a4a4a" stroke-width="3.5"/>
+          <circle cx="100" cy="62" r="4" fill="#653e32"/>
+          <!-- Eyes -->
+          <circle cx="76" cy="118" r="5" fill="#4a4a4a"/>
+          <circle cx="124" cy="118" r="5" fill="#4a4a4a"/>
+          <!-- Mouth (W shape) -->
+          <path d="M 92 124 Q 100 122 100 128 Q 100 122 108 124" fill="none" stroke="#4a4a4a" stroke-width="3" stroke-linecap="round"/>
+        </svg>`
+      },
+      {
+        id: 'pochacco',
+        nameZh: '帕恰狗',
+        nameEn: 'Pochacco',
+        birthday: '2月29日',
+        bio: '好奇心旺盛又有點冒失的黑耳小白狗，最喜歡散步和吃香草冰淇淋！',
+        svg: `<svg viewBox="0 0 200 200" class="w-full h-full">
+          <!-- Black Ears -->
+          <path d="M 52 100 C 25 90 20 140 45 145 C 60 148 60 120 58 108 Z" fill="#333333" stroke="#222222" stroke-width="4"/>
+          <path d="M 148 100 C 175 90 180 140 155 145 C 140 148 140 120 142 108 Z" fill="#333333" stroke="#222222" stroke-width="4"/>
+          <!-- Head -->
+          <ellipse cx="100" cy="115" rx="50" ry="42" fill="#ffffff" stroke="#222222" stroke-width="4"/>
+          <!-- Hair Tuft -->
+          <path d="M 95 73 Q 100 60 105 73" fill="none" stroke="#222222" stroke-width="3.5"/>
+          <!-- Eyes -->
+          <ellipse cx="78" cy="112" rx="4.5" ry="7" fill="#222222"/>
+          <ellipse cx="122" cy="112" rx="4.5" ry="7" fill="#222222"/>
+          <!-- Black Nose -->
+          <ellipse cx="100" cy="120" rx="7" ry="5" fill="#222222"/>
+          <!-- Cute Cheek Blush -->
+          <ellipse cx="66" cy="124" rx="6" ry="4" fill="#ffb3c6" opacity="0.6"/>
+          <ellipse cx="134" cy="124" rx="6" ry="4" fill="#ffb3c6" opacity="0.6"/>
+        </svg>`
+      },
+      {
+        id: 'keroppi',
+        nameZh: '大眼蛙',
+        nameEn: 'Keroppi',
+        birthday: '7月10日',
+        bio: '住在甜甜圈池塘的活力大眼青蛙，最擅長游泳和唱歌！',
+        svg: `<svg viewBox="0 0 200 200" class="w-full h-full">
+          <!-- Giant Round Eyes -->
+          <circle cx="70" cy="75" r="28" fill="#ffffff" stroke="#333333" stroke-width="4"/>
+          <circle cx="130" cy="75" r="28" fill="#ffffff" stroke="#333333" stroke-width="4"/>
+          <circle cx="76" cy="75" r="6" fill="#333333"/>
+          <circle cx="124" cy="75" r="6" fill="#333333"/>
+          <!-- Green Head -->
+          <ellipse cx="100" cy="125" rx="65" ry="45" fill="#70e000" stroke="#333333" stroke-width="4"/>
+          <!-- Pink Cheeks -->
+          <circle cx="55" cy="130" r="9" fill="#ff758f" opacity="0.8"/>
+          <circle cx="145" cy="130" r="9" fill="#ff758f" opacity="0.8"/>
+          <!-- V-Shape Mouth -->
+          <path d="M 90 130 L 100 138 L 110 130" fill="none" stroke="#333333" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>`
+      },
+      {
+        id: 'gudetama',
+        nameZh: '蛋黃哥',
+        nameEn: 'Gudetama',
+        birthday: '6月26日',
+        bio: '無論何時都提不起勁、沒精打采的蛋黃，口頭禪是「好累喔~不想動~」。',
+        svg: `<svg viewBox="0 0 200 200" class="w-full h-full">
+          <!-- Egg White Base -->
+          <path d="M 30 140 C 20 170 80 185 130 180 C 180 175 185 135 150 125 C 120 115 50 110 30 140 Z" fill="#ffffff" stroke="#4a4a4a" stroke-width="4"/>
+          <!-- Yellow Yolk Body -->
+          <ellipse cx="100" cy="120" rx="50" ry="38" fill="#ffb703" stroke="#4a4a4a" stroke-width="4"/>
+          <!-- Droopy Eyes -->
+          <line x1="75" y1="118" x2="88" y2="120" stroke="#4a4a4a" stroke-width="4" stroke-linecap="round"/>
+          <line x1="112" y1="120" x2="125" y2="118" stroke="#4a4a4a" stroke-width="4" stroke-linecap="round"/>
+          <!-- Open Lazy Mouth -->
+          <ellipse cx="100" cy="128" rx="6" ry="4" fill="#e63946"/>
+        </svg>`
+      },
+      {
+        id: 'badtz',
+        nameZh: '酷企鵝',
+        nameEn: 'Badtz-Maru',
+        birthday: '4月1日',
+        bio: '個性古怪、喜歡裝酷的黑色小企鵝，標誌性特徵是獨特的刺刺頭！',
+        svg: `<svg viewBox="0 0 200 200" class="w-full h-full">
+          <!-- Spiky Hair -->
+          <path d="M 60 70 L 70 30 L 88 55 L 100 20 L 112 55 L 130 30 L 140 70 Z" fill="#2b2d42" stroke="#111111" stroke-width="4" stroke-linejoin="round"/>
+          <!-- Head Body -->
+          <ellipse cx="100" cy="120" rx="55" ry="48" fill="#2b2d42" stroke="#111111" stroke-width="4"/>
+          <!-- White Face Oval -->
+          <ellipse cx="100" cy="126" rx="42" ry="32" fill="#ffffff" stroke="#111111" stroke-width="3"/>
+          <!-- Sideways Eyes (Looking up/side) -->
+          <ellipse cx="80" cy="118" rx="8" ry="11" fill="#ffffff" stroke="#111111" stroke-width="2.5"/>
+          <ellipse cx="120" cy="118" rx="8" ry="11" fill="#ffffff" stroke="#111111" stroke-width="2.5"/>
+          <circle cx="80" cy="114" r="3.5" fill="#111111"/>
+          <circle cx="120" cy="114" r="3.5" fill="#111111"/>
+          <!-- Yellow Beak -->
+          <polygon points="90,126 110,126 100,138" fill="#ffb703" stroke="#111111" stroke-width="2.5" stroke-linejoin="round"/>
+        </svg>`
+      },
+      {
+        id: 'hangyodon',
+        nameZh: '人魚漢頓',
+        nameEn: 'Hangyodon',
+        birthday: '3月14日',
+        bio: '單純浪漫、夢想成為英雄的藍色半魚人，雖然常想逗大家開心卻偶爾會搞砸。',
+        svg: `<svg viewBox="0 0 200 200" class="w-full h-full">
+          <!-- Top Dorsal Fin -->
+          <path d="M 100 65 C 100 35 125 45 110 70 Z" fill="#48cae4" stroke="#0077b6" stroke-width="3.5"/>
+          <!-- Head Body -->
+          <ellipse cx="100" cy="118" rx="55" ry="45" fill="#90e0ef" stroke="#0077b6" stroke-width="4"/>
+          <!-- Giant Eyes -->
+          <circle cx="72" cy="110" r="16" fill="#ffffff" stroke="#0077b6" stroke-width="3"/>
+          <circle cx="128" cy="110" r="16" fill="#ffffff" stroke="#0077b6" stroke-width="3"/>
+          <circle cx="72" cy="110" r="4" fill="#0077b6"/>
+          <circle cx="128" cy="110" r="4" fill="#0077b6"/>
+          <!-- Big Pink Lips -->
+          <ellipse cx="100" cy="138" rx="22" ry="12" fill="#ffb3c6" stroke="#0077b6" stroke-width="3"/>
+          <line x1="80" y1="138" x2="120" y2="138" stroke="#0077b6" stroke-width="2.5"/>
+        </svg>`
+      }
+    ];
+
+    /* -------------------------------------------------------------
+       2. 全域遊戲狀態變數
+       ------------------------------------------------------------- */
+    let currentMode = 'quiz'; // 'quiz' 或 'memory'
+    let soundEnabled = true;
+
+    // 模式一：看圖猜名字
+    let quizQueue = [];
+    let currentQuizIndex = 0;
+    let quizScore = 0;
+    let quizCombo = 0;
+
+    // 模式二：記憶翻牌
+    let memoryCards = [];
+    let flippedCards = [];
+    let matchedCount = 0;
+    let memoryMoves = 0;
+    let isBusyFlipping = false;
+
+    /* -------------------------------------------------------------
+       3. Web Audio API 可愛音效合成器
+       ------------------------------------------------------------- */
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    let audioCtx = null;
+
+    function initAudio() {
+      if (!audioCtx) {
+        audioCtx = new AudioCtx();
+      }
+    }
+
+    function playSound(type) {
+      if (!soundEnabled) return;
+      try {
+        initAudio();
+        if (audioCtx.state === 'suspended') {
+          audioCtx.resume();
+        }
+
+        const now = audioCtx.currentTime;
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+
+        if (type === 'click') {
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(400, now);
+          osc.frequency.exponentialRampToValueAtTime(600, now + 0.08);
+          gain.gain.setValueAtTime(0.15, now);
+          gain.gain.linearRampToValueAtTime(0.01, now + 0.08);
+          osc.start(now);
+          osc.stop(now + 0.08);
+        } else if (type === 'correct') {
+          // 正確音效 (可愛上升三音程)
+          const notes = [523.25, 659.25, 783.99, 1046.50]; // C5, E5, G5, C6
+          notes.forEach((freq, idx) => {
+            const o = audioCtx.createOscillator();
+            const g = audioCtx.createGain();
+            o.type = 'triangle';
+            o.frequency.setValueAtTime(freq, now + idx * 0.08);
+            g.gain.setValueAtTime(0.2, now + idx * 0.08);
+            g.gain.exponentialRampToValueAtTime(0.01, now + idx * 0.08 + 0.15);
+            o.connect(g);
+            g.connect(audioCtx.destination);
+            o.start(now + idx * 0.08);
+            o.stop(now + idx * 0.08 + 0.15);
+          });
+        } else if (type === 'wrong') {
+          // 答錯音效
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(220, now);
+          osc.frequency.linearRampToValueAtTime(140, now + 0.25);
+          gain.gain.setValueAtTime(0.2, now);
+          gain.gain.linearRampToValueAtTime(0.01, now + 0.25);
+          osc.start(now);
+          osc.stop(now + 0.25);
+        } else if (type === 'flip') {
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(300, now);
+          osc.frequency.exponentialRampToValueAtTime(500, now + 0.05);
+          gain.gain.setValueAtTime(0.1, now);
+          gain.gain.linearRampToValueAtTime(0.01, now + 0.05);
+          osc.start(now);
+          osc.stop(now + 0.05);
+        }
+      } catch (e) {
+        console.log('Audio Context Error', e);
+      }
+    }
+
+    function toggleSound() {
+      soundEnabled = !soundEnabled;
+      const icon = document.getElementById('sound-icon');
+      if (soundEnabled) {
+        icon.className = 'fa-solid fa-volume-high text-lg';
+        playSound('click');
+      } else {
+        icon.className = 'fa-solid fa-volume-xmark text-lg text-gray-400';
+      }
+    }
+
+    /* -------------------------------------------------------------
+       4. 背景動態氣泡與愛心特效粒子
+       ------------------------------------------------------------- */
+    function initFloatingBubbles() {
+      const container = document.getElementById('bubble-bg');
+      container.innerHTML = '';
+      for (let i = 0; i < 12; i++) {
+        const b = document.createElement('div');
+        b.className = 'bubble';
+        const size = Math.random() * 40 + 20;
+        b.style.width = `${size}px`;
+        b.style.height = `${size}px`;
+        b.style.left = `${Math.random() * 100}%`;
+        b.style.animationDuration = `${Math.random() * 8 + 8}s`;
+        b.style.animationDelay = `${Math.random() * 5}s`;
+        container.appendChild(b);
+      }
+    }
+
+    // 答對時的愛心粒子噴發
+    const canvas = document.getElementById('particle-canvas');
+    const ctx = canvas.getContext('2d');
+    let particles = [];
+
+    function resizeCanvas() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    function spawnParticles(x, y) {
+      for (let i = 0; i < 25; i++) {
+        particles.push({
+          x: x || window.innerWidth / 2,
+          y: y || window.innerHeight / 2,
+          vx: (Math.random() - 0.5) * 10,
+          vy: (Math.random() - 0.8) * 10,
+          size: Math.random() * 14 + 10,
+          color: ['#ff758f', '#ffb3c6', '#cdb4db', '#ffc8dd', '#ffea9f'][Math.floor(Math.random() * 5)],
+          alpha: 1,
+          rotation: Math.random() * Math.PI * 2
+        });
+      }
+    }
+
+    function updateParticles() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.x += p.vx;
+        p.y += p.vy;
+        p.vy += 0.3; // 重力
+        p.alpha -= 0.02;
+
+        if (p.alpha <= 0) {
+          particles.splice(i, 1);
+          continue;
+        }
+
+        ctx.save();
+        ctx.globalAlpha = p.alpha;
+        ctx.translate(p.x, p.y);
+        ctx.rotate(p.rotation);
+        ctx.fillStyle = p.color;
+        // 繪製愛心形狀
+        ctx.beginPath();
+        const topCurveHeight = p.size * 0.3;
+        ctx.moveTo(0, topCurveHeight);
+        ctx.bezierCurveTo(0, 0, -p.size / 2, 0, -p.size / 2, topCurveHeight);
+        ctx.bezierCurveTo(-p.size / 2, (p.size + topCurveHeight) / 2, 0, p.size, 0, p.size);
+        ctx.bezierCurveTo(0, p.size, p.size / 2, (p.size + topCurveHeight) / 2, p.size / 2, topCurveHeight);
+        ctx.bezierCurveTo(p.size / 2, 0, 0, 0, 0, topCurveHeight);
+        ctx.fill();
+        ctx.restore();
+      }
+      requestAnimationFrame(updateParticles);
+    }
+    requestAnimationFrame(updateParticles);
+
+
+    /* -------------------------------------------------------------
+       5. 模式切換與初始化
+       ------------------------------------------------------------- */
+    function switchMode(mode) {
+      playSound('click');
+      currentMode = mode;
+      const tabQuiz = document.getElementById('tab-quiz');
+      const tabMemory = document.getElementById('tab-memory');
+      const modeQuiz = document.getElementById('mode-quiz');
+      const modeMemory = document.getElementById('mode-memory');
+
+      if (mode === 'quiz') {
+        tabQuiz.className = 'px-6 py-2 rounded-full text-sm font-bold transition shadow-sm bg-pink-400 text-white';
+        tabMemory.className = 'px-6 py-2 rounded-full text-sm font-bold transition text-gray-600 hover:bg-white/50';
+        modeQuiz.classList.remove('hidden');
+        modeMemory.classList.add('hidden');
+      } else {
+        tabMemory.className = 'px-6 py-2 rounded-full text-sm font-bold transition shadow-sm bg-pink-400 text-white';
+        tabQuiz.className = 'px-6 py-2 rounded-full text-sm font-bold transition text-gray-600 hover:bg-white/50';
+        modeMemory.classList.remove('hidden');
+        modeQuiz.classList.add('hidden');
+      }
+      resetGame();
+    }
+
+    function shuffleArray(array) {
+      return array.sort(() => Math.random() - 0.5);
+    }
+
+    function resetGame() {
+      if (currentMode === 'quiz') {
+        initQuizMode();
+      } else {
+        initMemoryMode();
+      }
+    }
+
+
+    /* -------------------------------------------------------------
+       6. 模式一：看圖猜名字 邏輯
+       ------------------------------------------------------------- */
+    function initQuizMode() {
+      quizQueue = shuffleArray([...SANRIO_CHARACTERS]);
+      currentQuizIndex = 0;
+      quizScore = 0;
+      quizCombo = 0;
+      updateQuizUI();
+      loadQuizQuestion();
+    }
+
+    function updateQuizUI() {
+      document.getElementById('quiz-progress').innerText = `${currentQuizIndex + 1}/${quizQueue.length}`;
+      document.getElementById('quiz-score').innerText = quizScore;
+      document.getElementById('quiz-combo').innerText = quizCombo;
+    }
+
+    function loadQuizQuestion() {
+      if (currentQuizIndex >= quizQueue.length) {
+        showFinalResult();
+        return;
+      }
+
+      updateQuizUI();
+      const currentCharacter = quizQueue[currentQuizIndex];
+
+      // 載入 SVG
+      const container = document.getElementById('character-svg-container');
+      container.innerHTML = currentCharacter.svg;
+
+      // 生成選項 (1 正確 + 3 錯誤)
+      const wrongOptions = SANRIO_CHARACTERS
+        .filter(c => c.id !== currentCharacter.id)
+        .sort(() => Math.random() - 0.5)
+        .slice(0, 3);
+      
+      const options = shuffleArray([currentCharacter, ...wrongOptions]);
+      const optionsContainer = document.getElementById('quiz-options');
+      optionsContainer.innerHTML = '';
+
+      options.forEach(opt => {
+        const btn = document.createElement('button');
+        btn.className = 'py-3.5 px-4 rounded-2xl bg-pink-50 hover:bg-pink-100 border-2 border-pink-200 text-gray-700 font-bold text-sm md:text-base transition transform active:scale-95 shadow-sm flex flex-col items-center justify-center';
+        btn.innerHTML = `
+          <span>${opt.nameZh}</span>
+          <span class="text-xs font-normal text-purple-400">${opt.nameEn}</span>
+        `;
+        btn.onclick = (e) => handleQuizAnswer(opt.id, currentCharacter, e);
+        optionsContainer.appendChild(btn);
+      });
+    }
+
+    function handleQuizAnswer(selectedId, targetCharacter, event) {
+      if (selectedId === targetCharacter.id) {
+        // 答對
+        playSound('correct');
+        spawnParticles(event.clientX, event.clientY);
+        quizCombo++;
+        quizScore += 10 + (quizCombo > 1 ? (quizCombo - 1) * 5 : 0);
+        updateQuizUI();
+
+        // 顯示小知識彈窗
+        setTimeout(() => {
+          showTriviaModal(targetCharacter);
+        }, 300);
+      } else {
+        // 答錯
+        playSound('wrong');
+        quizCombo = 0;
+        updateQuizUI();
+        
+        // 晃動容器提示
+        const container = document.getElementById('character-svg-container').parentElement;
+        container.classList.add('shake');
+        setTimeout(() => container.classList.remove('shake'), 500);
+
+        // 標示出正確選項與錯誤選項
+        const buttons = document.querySelectorAll('#quiz-options button');
+        buttons.forEach(btn => {
+          if (btn.innerText.includes(targetCharacter.nameZh)) {
+            btn.classList.remove('bg-pink-50', 'border-pink-200');
+            btn.classList.add('bg-green-100', 'border-green-400', 'text-green-800');
+          }
+        });
+      }
+    }
+
+    function showTriviaModal(character) {
+      document.getElementById('trivia-name-zh').innerText = character.nameZh;
+      document.getElementById('trivia-name-en').innerText = character.nameEn;
+      document.getElementById('trivia-birthday').innerText = character.birthday;
+      document.getElementById('trivia-bio').innerText = character.bio;
+
+      const modal = document.getElementById('trivia-modal');
+      const card = document.getElementById('trivia-modal-card');
+      modal.classList.remove('hidden');
+      setTimeout(() => {
+        card.classList.remove('scale-95', 'opacity-0');
+        card.classList.add('scale-100', 'opacity-100');
+      }, 10);
+    }
+
+    function closeTriviaModal() {
+      playSound('click');
+      const modal = document.getElementById('trivia-modal');
+      const card = document.getElementById('trivia-modal-card');
+      card.classList.remove('scale-100', 'opacity-100');
+      card.classList.add('scale-95', 'opacity-0');
+      setTimeout(() => {
+        modal.classList.add('hidden');
+        currentQuizIndex++;
+        loadQuizQuestion();
+      }, 200);
+    }
+
+
+    /* -------------------------------------------------------------
+       7. 模式二：記憶翻牌配對 邏輯
+       ------------------------------------------------------------- */
+    function initMemoryMode() {
+      memoryMoves = 0;
+      matchedCount = 0;
+      flippedCards = [];
+      isBusyFlipping = false;
+
+      // 隨機選取 6 位角色進行 12 張牌的配對
+      const selectedChars = shuffleArray([...SANRIO_CHARACTERS]).slice(0, 6);
+      
+      let deck = [];
+      selectedChars.forEach(char => {
+        // 卡片 A: SVG 插畫
+        deck.push({ charId: char.id, type: 'svg', content: char.svg, data: char });
+        // 卡片 B: 中英文名字
+        deck.push({ charId: char.id, type: 'name', content: char.nameZh, data: char });
+      });
+
+      memoryCards = shuffleArray(deck);
+      updateMemoryUI();
+      renderMemoryGrid();
+    }
+
+    function updateMemoryUI() {
+      document.getElementById('memory-moves').innerText = memoryMoves;
+      document.getElementById('memory-matches').innerText = `${matchedCount} / 6`;
+    }
+
+    function renderMemoryGrid() {
+      const grid = document.getElementById('memory-grid');
+      grid.innerHTML = '';
+
+      memoryCards.forEach((card, index) => {
+        const scene = document.createElement('div');
+        scene.className = 'card-scene h-28 md:h-36';
+
+        const inner = document.createElement('div');
+        inner.className = 'card-inner';
+        inner.dataset.index = index;
+
+        // 正面（蓋牌時顯示圖案）
+        const front = document.createElement('div');
+        front.className = 'card-face card-front text-white text-2xl font-bold';
+        front.innerHTML = '🎀';
+
+        // 背面（翻開時內容）
+        const back = document.createElement('div');
+        back.className = 'card-face card-back p-2 text-center';
+        if (card.type === 'svg') {
+          back.innerHTML = `<div class="w-16 h-16 md:w-20 md:h-20 flex items-center justify-center">${card.content}</div>`;
+        } else {
+          back.innerHTML = `
+            <div>
+              <p class="font-black text-pink-600 text-sm md:text-base">${card.data.nameZh}</p>
+              <p class="text-xs text-purple-400 font-medium">${card.data.nameEn}</p>
+            </div>
+          `;
+        }
+
+        inner.appendChild(front);
+        inner.appendChild(back);
+        scene.appendChild(inner);
+
+        inner.onclick = () => handleCardFlip(inner, index);
+        grid.appendChild(scene);
+      });
+    }
+
+    function handleCardFlip(cardElem, index) {
+      if (isBusyFlipping) return;
+      if (cardElem.classList.contains('is-flipped')) return;
+      if (flippedCards.length >= 2) return;
+
+      playSound('flip');
+      cardElem.classList.add('is-flipped');
+      flippedCards.push({ elem: cardElem, data: memoryCards[index] });
+
+      if (flippedCards.length === 2) {
+        memoryMoves++;
+        updateMemoryUI();
+        checkMemoryMatch();
+      }
+    }
+
+    function checkMemoryMatch() {
+      const [card1, card2] = flippedCards;
+      const isMatch = card1.data.charId === card2.data.charId;
+
+      if (isMatch) {
+        playSound('correct');
+        matchedCount++;
+        updateMemoryUI();
+        flippedCards = [];
+
+        if (matchedCount === 6) {
+          setTimeout(() => {
+            showFinalResult();
+          }, 600);
+        }
+      } else {
+        isBusyFlipping = true;
+        playSound('wrong');
+        setTimeout(() => {
+          card1.elem.classList.remove('is-flipped');
+          card2.elem.classList.remove('is-flipped');
+          flippedCards = [];
+          isBusyFlipping = false;
+        }, 1000);
+      }
+    }
+
+
+    /* -------------------------------------------------------------
+       8. 結算畫面與稱號判定
+       ------------------------------------------------------------- */
+    function showFinalResult() {
+      let finalScoreText = '';
+      let titleText = '';
+      let detailText = '';
+
+      if (currentMode === 'quiz') {
+        finalScoreText = `${quizScore} 分`;
+        if (quizScore >= 120) {
+          titleText = '三麗鷗超級鐵粉 💖';
+          detailText = '完美的表現！你對三麗鷗家族的角色簡直是瞭如指掌！';
+        } else if (quizScore >= 70) {
+          titleText = '三麗鷗好朋友 🎀';
+          detailText = '做得好！你對大部分角色的名字都非常熟悉喔！';
+        } else {
+          titleText = '三麗鷗見習生 🌟';
+          detailText = '再接再厲！多玩幾次就能把所有可愛角色的名字記住囉！';
+        }
+      } else {
+        finalScoreText = `${memoryMoves} 步完成`;
+        if (memoryMoves <= 10) {
+          titleText = '記憶大師 🧠✨';
+          detailText = '驚人的記憶力！只花了極少步數就完成配對！';
+        } else if (memoryMoves <= 16) {
+          titleText = '敏捷甜心 🌸';
+          detailText = '表現優異！反應相當迅速呢！';
+        } else {
+          titleText = '努力小達人 💪';
+          detailText = '順利完成了配對，繼續挑戰更少的步數吧！';
+        }
+      }
+
+      document.getElementById('result-score').innerText = finalScoreText;
+      document.getElementById('result-title').innerText = `「${titleText}」`;
+      document.getElementById('result-detail').innerText = detailText;
+
+      const modal = document.getElementById('result-modal');
+      modal.classList.remove('hidden');
+      spawnParticles(window.innerWidth / 2, window.innerHeight / 3);
+    }
+
+    function closeResultModal() {
+      playSound('click');
+      document.getElementById('result-modal').classList.add('hidden');
+    }
+
+    /* 初始化遊戲 */
+    window.onload = () => {
+      initFloatingBubbles();
+      initQuizMode();
+    };
+  </script>
+</body>
+</html>
